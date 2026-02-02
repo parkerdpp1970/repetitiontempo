@@ -1,0 +1,959 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movement Tempo in Resistance Training</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6; /* Blue */
+            --primary-dark: #2563eb;
+            --primary-light: #dbeafe;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            
+            --c-strength: #3b82f6;
+            --c-hypertrophy: #ec4899; 
+            --c-metabolic: #10b981;
+            
+            --phase-ecc: #ef4444; /* Red */
+            --phase-iso: #f59e0b; /* Orange */
+            --phase-con: #eab308; /* Yellow/Gold */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        /* HEADER */
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 1.8rem; font-weight: 700; color: #1e1b4b; margin-bottom: 5px; }
+        .subtitle { color: var(--text-muted); font-size: 1rem; }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 30px;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 15px 5px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            position: relative;
+        }
+        .tab-btn.active { color: var(--primary); font-weight: 600; }
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+        }
+
+        /* CONTENT SECTIONS */
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* MAIN SIMULATION LAYOUT */
+        .sim-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        @media(max-width: 900px) { .sim-grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+        .card h3 { margin-top: 0; font-size: 1.1rem; margin-bottom: 20px; }
+
+        /* ANIMATION BOX */
+        .visualizer-box {
+            background: #f1f5f9;
+            height: 250px;
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+            margin-bottom: 15px;
+        }
+        .weight-stack {
+            width: 120px;
+            height: 20px;
+            background: #334155;
+            border-radius: 4px;
+            position: absolute;
+            /* Start position (Top) for Eccentric First */
+            bottom: 220px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .cable {
+            width: 4px;
+            background: #94a3b8;
+            position: absolute;
+            top: 0;
+            bottom: 240px; /* Connects to weight at top */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 0;
+        }
+        .phase-text {
+            position: absolute;
+            top: 20px;
+            font-weight: 700;
+            background: rgba(255,255,255,0.9);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            z-index: 2;
+        }
+
+        /* SIMULATION STATS & CONTROLS */
+        .sim-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .sim-stat-item { text-align: center; }
+        .sim-stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .sim-stat-val { font-size: 1rem; font-weight: 700; color: var(--text-main); font-variant-numeric: tabular-nums; }
+
+        .control-btns {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+        button.action-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        button.action-btn:hover { background: var(--primary-dark); }
+        button.action-btn.stop { background: #ef4444; }
+        button.action-btn.stop:hover { background: #dc2626; }
+        button.action-btn.reset { background: #64748b; }
+        button.action-btn.reset:hover { background: #475569; }
+        
+        button:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+        /* SLIDERS */
+        .control-row { margin-bottom: 18px; }
+        .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--primary); }
+        .notation-display {
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            color: var(--text-main);
+        }
+
+        /* PREDICTION RINGS */
+        .prediction-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        .gauge-card {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .gauge-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        /* Simple CSS Conic Gradients for Gauges */
+        .g-strength { background: conic-gradient(var(--c-strength) 0%, #e2e8f0 0%); }
+        .g-hyper { background: conic-gradient(var(--c-hypertrophy) 0%, #e2e8f0 0%); }
+        .g-meta { background: conic-gradient(var(--c-metabolic) 0%, #e2e8f0 0%); }
+        
+        .gauge-inner {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .gauge-label { font-size: 0.9rem; font-weight: 600; margin-bottom: 5px; }
+        .gauge-desc { font-size: 0.75rem; color: var(--text-muted); line-height: 1.3; }
+
+        /* GRAPHS */
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+
+        /* STATIC ANALYSIS PAGES */
+        .analysis-block {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+        .analysis-title { font-weight: 700; font-size: 1.1rem; margin-bottom: 10px; color: #1e1b4b; }
+        .analysis-text { line-height: 1.6; color: #475569; font-size: 0.95rem; }
+        
+        .key-takeaways {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .takeaway-card {
+            background: #eff6ff;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .takeaway-title { color: #1e40af; font-weight: 700; margin-bottom: 8px; font-size: 0.95rem; }
+        .takeaway-body { font-size: 0.85rem; color: #334155; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Movement Tempo in Resistance Training</h1>
+        <div class="subtitle">Research-Validated Tool (Wilk et al. & Consensus Data)</div>
+    </header>
+
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('sim')">Tempo Simulation</button>
+        <button class="tab-btn" onclick="switchTab('strength')">Strength Analysis</button>
+        <button class="tab-btn" onclick="switchTab('hyper')">Hypertrophy Analysis</button>
+        <button class="tab-btn" onclick="switchTab('research')">Research Data</button>
+    </div>
+
+    <!-- TAB 1: SIMULATION -->
+    <div id="tab-sim" class="tab-content active">
+        
+        <div class="sim-grid">
+            
+            <!-- VISUALIZER -->
+            <div class="card">
+                <h3>Exercise Simulation</h3>
+                <div class="visualizer-box">
+                    <div class="cable" id="cable"></div>
+                    <div class="phase-text" id="phase-display">Ready</div>
+                    <div class="weight-stack" id="weight"></div>
+                </div>
+                
+                <div class="sim-stats">
+                    <div class="sim-stat-item">
+                        <div class="sim-stat-val" id="stat-rep-time">0.0s</div>
+                        <div class="sim-stat-label">Time Per Rep</div>
+                    </div>
+                    <div class="sim-stat-item">
+                        <div class="sim-stat-val" id="stat-tut">0.0s</div>
+                        <div class="sim-stat-label">Total TUT</div>
+                    </div>
+                    <div class="sim-stat-item">
+                        <div class="sim-stat-val"><span id="stat-reps-done">0</span> / <span id="stat-reps-total">1</span></div>
+                        <div class="sim-stat-label">Rep Counter</div>
+                    </div>
+                </div>
+
+                <div class="control-btns">
+                    <button class="action-btn" id="btn-play" onclick="startSet()">▶ Start Set</button>
+                    <button class="action-btn stop" id="btn-pause" onclick="pauseSet()" disabled>❚❚ Pause</button>
+                    <button class="action-btn reset" id="btn-reset" onclick="resetSet()">↻ Reset</button>
+                </div>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="card">
+                <h3>Tempo Controls</h3>
+                
+                <div class="notation-display">
+                    Tempo (E/I/C/I): <span id="note-display">3/0/1/0</span>
+                </div>
+
+                <div class="control-row">
+                    <div class="control-header"><span>Eccentric (Lowering)</span><span id="val-ecc">3s</span></div>
+                    <input type="range" id="in-ecc" min="1" max="8" value="3" oninput="updateAll()">
+                </div>
+                <div class="control-row">
+                    <div class="control-header"><span>Bottom Isometric (Pause)</span><span id="val-bot">0s</span></div>
+                    <input type="range" id="in-bot" min="0" max="5" value="0" oninput="updateAll()">
+                </div>
+                <div class="control-row">
+                    <div class="control-header"><span>Concentric (Lifting)</span><span id="val-con">1s</span></div>
+                    <input type="range" id="in-con" min="1" max="8" value="1" oninput="updateAll()">
+                </div>
+                <div class="control-row">
+                    <div class="control-header"><span>Top Isometric (Reset)</span><span id="val-top">0s</span></div>
+                    <input type="range" id="in-top" min="0" max="5" value="0" oninput="updateAll()">
+                </div>
+                
+                <hr style="border: 0; border-top: 1px dashed #ddd; margin: 15px 0;">
+                
+                <div class="control-row">
+                    <div class="control-header"><span>Total Reps</span><span id="val-reps">1</span></div>
+                    <input type="range" id="in-reps" min="1" max="30" value="1" oninput="syncLoadToReps(this.value)">
+                </div>
+
+                <div class="control-row">
+                    <div class="control-header"><span>Load (% of 1RM)</span><span id="val-load">100%</span></div>
+                    <input type="range" id="in-load" min="30" max="100" value="100" oninput="syncRepsToLoad(this.value)">
+                </div>
+            </div>
+        </div>
+
+        <!-- GRAPHS ROW 1 -->
+        <div class="sim-grid">
+            <div class="card">
+                <h3>Time Under Tension Analysis</h3>
+                <div class="chart-container">
+                    <canvas id="chart-tut"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Muscle Activation Patterns</h3>
+                <div class="chart-container">
+                    <canvas id="chart-activation"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- PREDICTION GAUGES -->
+        <h3 style="margin-bottom: 15px;">Training Effect Prediction</h3>
+        <div class="prediction-grid">
+            
+            <!-- Strength Gauge -->
+            <div class="gauge-card">
+                <div class="gauge-circle g-strength" id="g-strength-bg">
+                    <div class="gauge-inner" id="score-strength">0</div>
+                </div>
+                <div class="gauge-label">Strength Development</div>
+                <div class="gauge-desc" id="desc-strength">Calculating...</div>
+            </div>
+
+            <!-- Hypertrophy Gauge -->
+            <div class="gauge-card">
+                <div class="gauge-circle g-hyper" id="g-hyper-bg">
+                    <div class="gauge-inner" id="score-hyper">0</div>
+                </div>
+                <div class="gauge-label">Hypertrophy Potential</div>
+                <div class="gauge-desc" id="desc-hyper">Calculating...</div>
+            </div>
+
+            <!-- Metabolic Gauge -->
+            <div class="gauge-card">
+                <div class="gauge-circle g-meta" id="g-meta-bg">
+                    <div class="gauge-inner" id="score-meta">0</div>
+                </div>
+                <div class="gauge-label">Metabolic Stress</div>
+                <div class="gauge-desc" id="desc-meta">Calculating...</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- TAB 2: STRENGTH ANALYSIS -->
+    <div id="tab-strength" class="tab-content">
+        <div class="analysis-block">
+            <div class="analysis-title">Updates: Tempo & Maximal Strength</div>
+            <div class="analysis-text">
+                <p>Recent reviews (Wilk et al., 2021) confirm that for 1RM strength development, the <strong>Concentric Velocity</strong> is paramount. While the bar may move slowly due to heavy loads (>85%), the <em>intent</em> must be explosive.</p>
+                <p><strong>Key findings:</strong> Voluntarily slowing down the concentric phase (e.g., "feeling the burn") is <em>detrimental</em> to maximal strength gains because it reduces the recruitment of high-threshold motor units. However, a controlled eccentric (2-4s) is still recommended for stability and injury prevention.</p>
+            </div>
+        </div>
+        
+        <div class="sim-grid">
+             <div class="card">
+                <h3>Strength Gains: Fast vs Slow Concentric</h3>
+                <div class="chart-container"><canvas id="chart-str-dev"></canvas></div>
+             </div>
+             <div class="card">
+                <h3>Neural Recruitment Efficiency</h3>
+                <div class="chart-container"><canvas id="chart-neural"></canvas></div>
+             </div>
+        </div>
+
+        <div class="key-takeaways">
+            <div class="takeaway-card">
+                <div class="takeaway-title">Intent is King</div>
+                <div class="takeaway-body">Regardless of the load, you must attempt to move the weight as fast as possible during the lifting phase to maximize strength adaptations.</div>
+            </div>
+            <div class="takeaway-card">
+                <div class="takeaway-title">Eccentric Duration</div>
+                <div class="takeaway-body">Wilk et al. suggest eccentric durations of 2-4s are optimal. Extending beyond 6s/rep may cause excessive fatigue, limiting the load you can handle.</div>
+            </div>
+            <div class="takeaway-card">
+                <div class="takeaway-title">Rep Range Specificity</div>
+                <div class="takeaway-body">While high reps can build muscle, maximal strength is a specific skill requiring heavy loads (1-5 reps) to train the nervous system.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: HYPERTROPHY ANALYSIS -->
+    <div id="tab-hyper" class="tab-content">
+        <div class="analysis-block">
+            <div class="analysis-title">The "Hypertrophy Range" Myth Updated</div>
+            <div class="analysis-text">
+                <p><strong>Current Consensus:</strong> The old model (1-5 reps = Strength, 8-12 = Hypertrophy, 20+ = Endurance) has been updated. Research now shows that <strong>hypertrophy is similar across a wide range of reps (5 to 30)</strong>, provided the set is taken near failure.</p>
+                <p><strong>The Role of Tempo:</strong> Tempo is a tool to standardize "Time Under Tension" (TUT). While TUT is a factor, it is secondary to mechanical tension. A 2-second rep and a 6-second rep induce similar growth if effort is equated. However, very slow tempos (>10s/rep) require such a drastic reduction in load that they may be inferior.</p>
+            </div>
+        </div>
+
+        <div class="sim-grid">
+             <div class="card">
+                <h3>Hypertrophy Across Rep Ranges (Equated Vol)</h3>
+                <div class="chart-container"><canvas id="chart-hyp-ranges"></canvas></div>
+             </div>
+             <div class="card">
+                <h3>Effective Rep Duration Window</h3>
+                <div class="chart-container"><canvas id="chart-hyp-duration"></canvas></div>
+             </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: RESEARCH DATA -->
+    <div id="tab-research" class="tab-content">
+        <div class="analysis-block">
+            <div class="analysis-title">Evidence-Based Guidelines</div>
+            <div class="analysis-text">
+                <ul>
+                    <li style="margin-bottom: 15px">
+                        <strong>Wilk et al. (2021) - Sports (MDPI):</strong> <br>
+                        <em>"The Influence of Movement Tempo..."</em><br>
+                        Found that a wide range of tempos (2s to 8s per repetition) are effective for hypertrophy. However, for strength, fast concentric actions are superior. Extremely slow training (>10s) produces inferior results due to significantly reduced load.
+                    </li>
+                    <li style="margin-bottom: 15px">
+                        <strong>Schoenfeld et al. (Consensus):</strong> <br>
+                        <em>"Strength and Hypertrophy Adaptations..."</em><br>
+                        Meta-analyses indicate that low-load (high rep) training produces similar hypertrophy to high-load (low rep) training when volume is equated and failure is reached. The "Hypertrophy Zone" is much wider than previously thought (approx 6-30 reps).
+                    </li>
+                    <li style="margin-bottom: 15px">
+                        <strong>Practical Application:</strong> <br>
+                        Select tempo based on control and safety (e.g., 2/0/1/0 or 3/0/1/0). Manipulate rep speed strictly for specific goals (explosive for strength, controlled/slow eccentric for metabolic stress).
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- GLOBAL VARIABLES ---
+    let chartTUT, chartAct, chartStrDev, chartNeural, chartHypRanges, chartHypDuration;
+    let animationId;
+    let isPaused = false;
+    let isRunning = false;
+    
+    let currentRep = 0;
+    let currentPhaseTime = 0; // Time elapsed in current phase
+    let currentTotalTime = 0; // Total TUT
+    let currentPhase = 'start'; // start, ecc, bot, con, top
+    let lastTimestamp = 0;
+
+    // --- TABS ---
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tab-' + tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // --- SLIDER LINKAGE LOGIC (Updated to 20 reps = 60% approx) ---
+    
+    // Mapping adjusted to fit 1RM % to Rep Maxes (NSCA/ACSM standards adapted)
+    const rmMap = {
+        1: 100, 2: 97, 3: 94, 4: 92, 5: 89,
+        6: 87, 7: 85, 8: 83, 9: 81, 10: 79,
+        11: 77, 12: 75, 13: 73, 14: 71, 15: 69,
+        16: 67, 17: 65, 18: 64, 19: 62, 20: 60,
+        21: 58, 22: 56, 23: 55, 24: 54, 25: 53,
+        26: 52, 27: 51, 28: 50, 29: 49, 30: 48
+    };
+
+    function syncLoadToReps(repsVal) {
+        const reps = parseInt(repsVal);
+        let load = 60; 
+        if (rmMap[reps]) {
+            load = rmMap[reps];
+        } else if (reps > 30) {
+            load = 40;
+        }
+
+        document.getElementById('in-load').value = load;
+        updateAll();
+    }
+
+    function syncRepsToLoad(loadVal) {
+        const load = parseInt(loadVal);
+        let bestReps = 20;
+        let minDiff = 100;
+
+        // Find key in rmMap closest to loadVal
+        for (const [r, l] of Object.entries(rmMap)) {
+            const diff = Math.abs(load - l);
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestReps = r;
+            }
+        }
+
+        document.getElementById('in-reps').value = bestReps;
+        updateAll();
+    }
+
+    // --- SIMULATION LOGIC ---
+    
+    function startSet() {
+        if (isRunning && !isPaused) return; // Already running
+        
+        const totalReps = parseInt(document.getElementById('in-reps').value);
+        
+        // UI State
+        document.getElementById('btn-play').disabled = true;
+        document.getElementById('btn-pause').disabled = false;
+        document.getElementById('btn-reset').disabled = false;
+        
+        // If starting from scratch
+        if (!isRunning) {
+            isRunning = true;
+            currentRep = 1;
+            currentTotalTime = 0;
+            currentPhase = 'ecc'; // Start with Eccentric
+            currentPhaseTime = 0;
+            lastTimestamp = performance.now();
+            
+            // Set Initial Visual Position to Top
+            const weight = document.getElementById('weight');
+            const cable = document.getElementById('cable');
+            weight.style.bottom = '220px';
+            cable.style.bottom = '240px';
+        } else {
+            // Resuming from pause
+            isPaused = false;
+            lastTimestamp = performance.now();
+        }
+
+        document.getElementById('stat-reps-done').innerText = currentRep;
+        requestAnimationFrame(step);
+    }
+
+    function pauseSet() {
+        isPaused = true;
+        document.getElementById('btn-play').disabled = false;
+        document.getElementById('btn-pause').disabled = true;
+        document.getElementById('phase-display').innerText = "Paused";
+    }
+
+    function resetSet() {
+        isRunning = false;
+        isPaused = false;
+        currentRep = 0;
+        currentTotalTime = 0;
+        currentPhaseTime = 0;
+        
+        // Reset UI
+        document.getElementById('btn-play').disabled = false;
+        document.getElementById('btn-pause').disabled = true;
+        document.getElementById('btn-reset').disabled = true;
+        
+        document.getElementById('stat-reps-done').innerText = "0";
+        document.getElementById('stat-tut').innerText = "0.0s";
+        document.getElementById('phase-display').innerText = "Ready";
+        document.getElementById('phase-display').style.color = "#333";
+        
+        // Reset Animation visual to TOP (Start of eccentric)
+        const weight = document.getElementById('weight');
+        const cable = document.getElementById('cable');
+        weight.style.bottom = '220px';
+        cable.style.bottom = '240px';
+    }
+
+    function step(timestamp) {
+        if (!isRunning || isPaused) return;
+
+        const deltaTime = (timestamp - lastTimestamp) / 1000; // seconds
+        lastTimestamp = timestamp;
+        
+        currentPhaseTime += deltaTime;
+        currentTotalTime += deltaTime;
+
+        // Update Counters
+        document.getElementById('stat-tut').innerText = currentTotalTime.toFixed(1) + 's';
+        
+        // Get Settings
+        const tEcc = parseFloat(document.getElementById('in-ecc').value);
+        const tBot = parseFloat(document.getElementById('in-bot').value);
+        const tCon = parseFloat(document.getElementById('in-con').value);
+        const tTop = parseFloat(document.getElementById('in-top').value);
+        const totalReps = parseInt(document.getElementById('in-reps').value);
+
+        // Phase Logic
+        const weight = document.getElementById('weight');
+        const cable = document.getElementById('cable');
+        const phaseDisp = document.getElementById('phase-display');
+
+        // SEQUENCE: ECC -> BOT -> CON -> TOP
+
+        // --- 1. ECCENTRIC (Lowering) ---
+        if (currentPhase === 'ecc') {
+            phaseDisp.innerText = "ECCENTRIC";
+            phaseDisp.style.color = "var(--phase-ecc)";
+            
+            const progress = Math.min(currentPhaseTime / tEcc, 1);
+            // Map progress 0-1 to height 220px - 20px (Reverse)
+            const height = 220 - (progress * 200);
+            weight.style.bottom = height + 'px';
+            cable.style.bottom = (height + 20) + 'px';
+
+            if (currentPhaseTime >= tEcc) {
+                currentPhaseTime = 0;
+                currentPhase = 'bot';
+            }
+        }
+        // --- 2. BOTTOM ISO ---
+        else if (currentPhase === 'bot') {
+            phaseDisp.innerText = tBot > 0 ? "BOTTOM HOLD" : "TRANSITION";
+            phaseDisp.style.color = "var(--phase-iso)";
+            
+            // Ensure visual is at bottom
+            weight.style.bottom = '20px';
+            cable.style.bottom = '40px';
+
+            if (currentPhaseTime >= tBot) {
+                currentPhaseTime = 0;
+                currentPhase = 'con';
+            }
+        }
+        // --- 3. CONCENTRIC (Lifting) ---
+        else if (currentPhase === 'con') {
+            phaseDisp.innerText = "CONCENTRIC";
+            phaseDisp.style.color = "var(--phase-con)";
+            
+            const progress = Math.min(currentPhaseTime / tCon, 1);
+            // Map progress 0-1 to height 20px - 220px
+            const height = 20 + (progress * 200); 
+            weight.style.bottom = height + 'px';
+            cable.style.bottom = (height + 20) + 'px';
+
+            if (currentPhaseTime >= tCon) {
+                currentPhaseTime = 0;
+                currentPhase = 'top';
+            }
+        }
+        // --- 4. TOP ISO & NEXT REP ---
+        else if (currentPhase === 'top') {
+            phaseDisp.innerText = tTop > 0 ? "TOP HOLD" : "TRANSITION";
+            phaseDisp.style.color = "var(--phase-iso)";
+            
+            // Ensure visual is at top
+            weight.style.bottom = '220px';
+            cable.style.bottom = '240px';
+
+            if (currentPhaseTime >= tTop) {
+                // Rep Complete
+                if (currentRep < totalReps) {
+                    currentRep++;
+                    document.getElementById('stat-reps-done').innerText = currentRep;
+                    currentPhaseTime = 0;
+                    currentPhase = 'ecc'; // LOOP BACK TO ECC
+                } else {
+                    // SET COMPLETE
+                    isRunning = false;
+                    document.getElementById('btn-play').disabled = false;
+                    document.getElementById('btn-pause').disabled = true;
+                    phaseDisp.innerText = "SET COMPLETE";
+                    phaseDisp.style.color = "#333";
+                    return; 
+                }
+            }
+        }
+
+        requestAnimationFrame(step);
+    }
+
+    // --- DATA UPDATES ---
+    function updateAll() {
+        const tEcc = parseFloat(document.getElementById('in-ecc').value);
+        const tBot = parseFloat(document.getElementById('in-bot').value);
+        const tCon = parseFloat(document.getElementById('in-con').value);
+        const tTop = parseFloat(document.getElementById('in-top').value);
+        const load = parseInt(document.getElementById('in-load').value);
+        const reps = parseInt(document.getElementById('in-reps').value);
+
+        // Text Displays
+        document.getElementById('val-ecc').innerText = tEcc + "s";
+        document.getElementById('val-bot').innerText = tBot + "s";
+        document.getElementById('val-con').innerText = tCon + "s";
+        document.getElementById('val-top').innerText = tTop + "s";
+        document.getElementById('val-load').innerText = load + "%";
+        document.getElementById('val-reps').innerText = reps;
+        document.getElementById('note-display').innerText = `${tEcc}/${tBot}/${tCon}/${tTop}`;
+        
+        document.getElementById('stat-reps-total').innerText = reps;
+        
+        const repTime = tEcc + tBot + tCon + tTop;
+        document.getElementById('stat-rep-time').innerText = repTime.toFixed(1) + "s";
+
+        // Reset Simulation if params change while not running
+        if (!isRunning && !isPaused) {
+            document.getElementById('stat-reps-done').innerText = "0";
+            
+            // Visual reset to Top
+            const weight = document.getElementById('weight');
+            const cable = document.getElementById('cable');
+            weight.style.bottom = '220px';
+            cable.style.bottom = '240px';
+        }
+
+        updateGraphs(tEcc, tBot, tCon, tTop, load, reps);
+        updatePredictions(tEcc, tBot, tCon, tTop, load, reps);
+    }
+
+    function updatePredictions(ecc, bot, con, top, load, reps) {
+        const tutPerRep = ecc + bot + con + top;
+        const totalTUT = tutPerRep * reps;
+        
+        // --- STRENGTH ALGORITHM ---
+        // Key: Load > 80%, Reps < 6, FAST concentric (intent)
+        let strScore = 0;
+        
+        if (load >= 85) strScore += 60;
+        else if (load >= 75) strScore += 40;
+        else strScore += 10;
+
+        if (reps <= 5) strScore += 20;
+        else if (reps <= 8) strScore += 10;
+        
+        // Penalty for slow concentric intent on strength
+        if (con <= 1.5) strScore += 20; 
+        else strScore -= 10;
+
+        // --- HYPERTROPHY ALGORITHM (UPDATED) ---
+        // Key: High effort (proximity to failure), wide rep range (5-30), moderate tempo
+        let hypScore = 0;
+        
+        // Rep Range Flexibility (Schoenfeld Consensus)
+        // 6-12 is great, but 15-30 is ALSO great if to failure
+        if (reps >= 6 && reps <= 25) hypScore += 50; 
+        else if (reps >= 3 && reps <= 35) hypScore += 40;
+        else hypScore += 20;
+
+        // Tempo check (Wilk et al.)
+        // 2-8s per rep is valid. >10s is bad.
+        if (tutPerRep >= 2 && tutPerRep <= 8) hypScore += 40;
+        else if (tutPerRep > 8) hypScore += 20; // Too slow reduces load too much
+        else hypScore += 30; // Very fast reps ok if volume matched
+
+        // Volume check
+        if (totalTUT >= 40) hypScore += 10;
+
+        // --- METABOLIC STRESS ALGORITHM ---
+        let metaScore = 0;
+        if (totalTUT > 60) metaScore += 40;
+        else if (totalTUT > 40) metaScore += 20;
+        if (reps >= 15) metaScore += 40;
+        else if (reps >= 10) metaScore += 20;
+        if (bot === 0 && top === 0) metaScore += 20; // Constant tension
+
+        setGauge('strength', Math.min(100, Math.max(0, strScore)));
+        setGauge('hyper', Math.min(100, Math.max(0, hypScore)));
+        setGauge('meta', Math.min(100, Math.max(0, metaScore)));
+
+        // --- DYNAMIC DESCRIPTIONS ---
+        document.getElementById('desc-strength').innerText = strScore > 80 ? 
+            "Optimal. Heavy load + explosive intent." : 
+            (load < 70 ? "Load too low for maximal neural drive." : "Good. Ensure fast concentric intent.");
+
+        document.getElementById('desc-hyper').innerText = hypScore > 80 ? 
+            "High. Effective rep range & duration." : 
+            "Moderate. Ensure failure is reached.";
+            
+        document.getElementById('desc-meta').innerText = metaScore > 80 ? 
+            "High burn! Significant lactate accumulation." : 
+            "Moderate metabolic demand.";
+    }
+
+    function setGauge(type, val) {
+        const bg = document.getElementById(`g-${type}-bg`);
+        const txt = document.getElementById(`score-${type}`);
+        
+        let color = '#3b82f6';
+        if (type === 'hyper') color = '#ec4899';
+        if (type === 'meta') color = '#10b981';
+
+        bg.style.background = `conic-gradient(${color} ${val}%, #e2e8f0 ${val}%)`;
+        txt.innerText = val;
+    }
+
+    // --- CHARTS ---
+    function initCharts() {
+        const ctxTUT = document.getElementById('chart-tut').getContext('2d');
+        chartTUT = new Chart(ctxTUT, {
+            type: 'bar',
+            data: {
+                labels: ['Eccentric', 'Bottom Iso', 'Concentric', 'Top Iso'],
+                datasets: [{
+                    label: 'Time Per Set (s)',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#eab308', '#3b82f6']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: {display:true, text: 'Seconds'} } } }
+        });
+
+        const ctxAct = document.getElementById('chart-activation').getContext('2d');
+        chartAct = new Chart(ctxAct, {
+            type: 'line',
+            data: {
+                labels: ['Start', '25%', '50%', '75%', '100% (End)'],
+                datasets: [{
+                    label: 'Motor Unit Recruitment (%)',
+                    data: [20, 40, 60, 80, 50],
+                    borderColor: '#3b82f6',
+                    fill: true,
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+        });
+
+        // CHART: Strength Dev (Tab 2)
+        new Chart(document.getElementById('chart-str-dev'), {
+            type: 'bar',
+            data: {
+                labels: ['Explosive Con', 'Controlled Con', 'Intentionally Slow'],
+                datasets: [{ label: 'Strength Outcome', data: [95, 70, 40], backgroundColor: ['#2563eb', '#93c5fd', '#cbd5e1'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        // CHART: Neural Recruitment (Tab 2)
+        new Chart(document.getElementById('chart-neural'), {
+            type: 'bar',
+            data: {
+                labels: ['1-5 Reps', '8-12 Reps', '20-30 Reps'],
+                datasets: [
+                    { label: 'Neural Drive', data: [95, 60, 30], backgroundColor: '#3b82f6' },
+                    { label: 'Metabolic Stress', data: [20, 60, 90], backgroundColor: '#10b981' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+        });
+
+        // CHART: Hypertrophy Range (Tab 3) - UPDATED for Consensus
+        chartHypRanges = new Chart(document.getElementById('chart-hyp-ranges'), {
+            type: 'line',
+            data: {
+                labels: ['3 Reps', '8 Reps', '15 Reps', '25 Reps', '35+ Reps'],
+                datasets: [{ 
+                    label: 'Hypertrophy Effect (to Failure)', 
+                    data: [70, 95, 95, 90, 60], // The Plateau Effect
+                    borderColor: '#ec4899', 
+                    backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                    fill: true,
+                    tension: 0.3 
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+        });
+
+         // CHART: Hypertrophy Duration (Tab 3) - Wilk et al data
+         chartHypDuration = new Chart(document.getElementById('chart-hyp-duration'), {
+            type: 'bar',
+            data: {
+                labels: ['Fast (<2s)', 'Mod (2-6s)', 'Slow (6-9s)', 'Super Slow (>10s)'],
+                datasets: [{ label: 'Effectiveness', data: [80, 95, 90, 50], backgroundColor: '#ec4899' }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function updateGraphs(ecc, bot, con, top, load, reps) {
+        chartTUT.data.datasets[0].data = [ecc * reps, bot * reps, con * reps, top * reps];
+        chartTUT.update();
+
+        const startAct = load * 0.6; 
+        const peakAct = Math.min(100, load + (reps * 2)); 
+        chartAct.data.datasets[0].data = [startAct, startAct + 10, (startAct + peakAct) / 2, peakAct, startAct * 0.5];
+        chartAct.update();
+    }
+
+    // Init
+    window.onload = function() {
+        initCharts();
+        updateAll();
+    };
+
+</script>
+
+</body>
+</html>
